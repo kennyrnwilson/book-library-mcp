@@ -20,11 +20,11 @@ def _resolve_library_root() -> Path:
     return Path(__file__).resolve().parents[3]
 
 
-def build_server() -> FastMCP:
+def build_server(host: str = "127.0.0.1", port: int = 5102) -> FastMCP:
     """Build and return a configured FastMCP app. Called at startup and from tests."""
     library_root = _resolve_library_root()
     catalog = load_catalog(library_root)
-    mcp = FastMCP("book-library")
+    mcp = FastMCP("book-library", host=host, port=port)
 
     def _require_book(slug: str):
         book = catalog.get(slug)

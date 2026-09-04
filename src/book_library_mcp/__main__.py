@@ -93,9 +93,9 @@ def main() -> int:
     if args.selftest:
         return _selftest()
 
-    server = build_server()
+    server = build_server(host=args.host, port=args.port)
     if args.transport == "streamable-http":
-        server.run(transport="streamable-http", host=args.host, port=args.port)
+        server.run(transport="streamable-http")
     else:
         server.run()  # stdio default
     return 0
