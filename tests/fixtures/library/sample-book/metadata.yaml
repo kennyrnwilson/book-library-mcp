@@ -1,0 +1,15 @@
+title: "Sample Book: A Test Fixture"
+author: Jane Doe
+categories:
+  - testing
+  - fixtures
+source_folder: sample-book
+formats:
+  md: book-formats/sample-book_book.md
+summaries:
+  openai: summaries/sample-book_summary.md
+infographics:
+  chatgpt: sample-book_book_infographic_chatgpt.txt
+tags:
+  - sample
+  - mcp
