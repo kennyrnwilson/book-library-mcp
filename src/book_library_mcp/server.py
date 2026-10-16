@@ -5,9 +5,15 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP, Image
 
 from book_library_mcp.catalog import load_catalog
+from book_library_mcp.images import (
+    find_book_infographic,
+    find_chapter_infographic,
+    list_chapter_infographics,
+    prepare_image,
+)
 from book_library_mcp.search import search_library
 
 
@@ -106,5 +112,40 @@ def build_server(host: str = "127.0.0.1", port: int = 5102) -> FastMCP:
             if path.exists():
                 return path.read_text()
         raise ValueError(f"no infographic .txt found for {slug}")
+
+    @mcp.tool()
+    def list_infographics(slug: str) -> dict:
+        """List one book's infographic images.
+
+        `book` says whether a whole-book infographic exists; `chapters` names the
+        chapters that have one. Pass a name to `get_infographic`.
+        """
+        book = _require_book(slug)
+        return {
+            "book": find_book_infographic(book.path, slug, None) is not None,
+            "chapters": list_chapter_infographics(book.path),
+        }
+
+    @mcp.tool()
+    def get_infographic(
+        slug: str, chapter: str | None = None, source: str | None = None
+    ) -> Image:
+        """Return an infographic image for a whole book, or for one chapter.
+
+        Omit `chapter` for the whole-book infographic; `source` (`chatgpt` or
+        `gemini`) picks a variant where a book has both. Give `chapter` as in
+        `get_chapter_summary`, e.g. `chapter-00-chapter-1`.
+        """
+        book = _require_book(slug)
+        if chapter:
+            path = find_chapter_infographic(book.path, chapter)
+            if path is None:
+                raise ValueError(f"no infographic for chapter: {slug}/{chapter}")
+        else:
+            path = find_book_infographic(book.path, slug, source)
+            if path is None:
+                raise ValueError(f"no book infographic for {slug}")
+        data, fmt = prepare_image(path)
+        return Image(data=data, format=fmt)
 
     return mcp

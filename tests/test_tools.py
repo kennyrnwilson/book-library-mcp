@@ -77,6 +77,46 @@ async def test_get_book_metadata_unknown_slug_errors(server):
     assert "nonexistent" in str(exc_info.value).lower() or "not found" in str(exc_info.value).lower()
 
 
+@pytest.mark.asyncio
+async def test_list_infographics_skips_debug_images(server):
+    result = await server.call_tool("list_infographics", {"slug": "sample-book"})
+    listing = _extract(result)
+    assert listing == {"book": True, "chapters": ["chapter-01-intro"]}
+
+
+@pytest.mark.asyncio
+async def test_get_infographic_returns_book_image(server):
+    content = _content(await server.call_tool("get_infographic", {"slug": "sample-book"}))
+    assert content.type == "image"
+    assert content.mimeType == "image/jpeg"
+
+
+@pytest.mark.asyncio
+async def test_get_infographic_returns_chapter_image(server):
+    result = await server.call_tool(
+        "get_infographic", {"slug": "sample-book", "chapter": "chapter-01-intro"}
+    )
+    content = _content(result)
+    assert content.type == "image"
+    assert content.mimeType == "image/png"
+
+
+@pytest.mark.asyncio
+async def test_get_infographic_unknown_chapter_errors(server):
+    with pytest.raises(Exception, match="no infographic"):
+        await server.call_tool(
+            "get_infographic", {"slug": "sample-book", "chapter": "chapter-02-broken"}
+        )
+
+
+def _content(call_tool_result):
+    """Return the single content item of a call_tool result."""
+    if isinstance(call_tool_result, tuple):
+        call_tool_result = call_tool_result[0]
+    (item,) = call_tool_result
+    return item
+
+
 def _extract(call_tool_result):
     """Pull the payload out of a FastMCP call_tool return.
 

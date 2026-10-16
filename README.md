@@ -18,6 +18,8 @@ the server code.
 | `get_action_items` | action-items.md for one book |
 | `get_personal_notes` | Aggregated personal-notes/ for one book |
 | `get_book_infographic_text` | Infographic text file for one book |
+| `list_infographics` | Whether a book has a whole-book infographic, and which chapters have one |
+| `get_infographic` | The whole-book infographic, or one chapter's, as an image |
 
 ## Self-hosting
 
