@@ -8,12 +8,16 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP, Image
 
 from book_library_mcp.catalog import load_catalog
+from book_library_mcp.git_ops import list_pending_changes as _list_pending
+from book_library_mcp.git_ops import save_changes as _save_changes
 from book_library_mcp.images import (
     find_book_infographic,
     find_chapter_infographic,
     list_chapter_infographics,
     prepare_image,
 )
+from book_library_mcp.notes import add_book_quote as _add_book_quote
+from book_library_mcp.notes import write_personal_notes as _write_personal_notes
 from book_library_mcp.search import search_library
 
 
@@ -147,5 +151,61 @@ def build_server(host: str = "127.0.0.1", port: int = 5102) -> FastMCP:
                 raise ValueError(f"no book infographic for {slug}")
         data, fmt = prepare_image(path)
         return Image(data=data, format=fmt)
+
+    # ---- Write tools (one file per book; filesystem only, no git) --------------
+
+    @mcp.tool()
+    def add_book_quote(
+        slug: str,
+        text: str,
+        why: str,
+        location: str = "",
+        themes: list[str] | None = None,
+        links: list[str] | None = None,
+    ) -> dict:
+        """Append a quote to one book's personal notes, `<slug>/personal-notes/README.md`.
+
+        Writes the quote, a source line (the book's author and title, plus a location
+        such as "ch. 11, p. 213"), a "Why" line in the user's words, and links plus one
+        `#quote/<theme>` tag per theme. Ask the user why the quote mattered if they
+        have not said. Does not commit: call `save_book_changes` once the user approves.
+        """
+        book = _require_book(slug)
+        return _add_book_quote(book.path, title=book.title, author=book.author, text=text,
+                               why=why, location=location, themes=themes, links=links)
+
+    @mcp.tool()
+    def write_personal_notes(slug: str, content: str) -> dict:
+        """Replace one book's personal notes, `<slug>/personal-notes/README.md`, with `content`.
+
+        Read them first with `get_personal_notes`, and send back the whole file. Does
+        not commit: call `save_book_changes` once the user approves.
+        """
+        book = _require_book(slug)
+        return _write_personal_notes(book.path, content)
+
+    # ---- Git tools (explicit-save model) ---------------------------------------
+
+    @mcp.tool()
+    def list_pending_book_changes() -> list[dict]:
+        """Return uncommitted changes in the book library (parsed git status)."""
+        return _list_pending(library_root)
+
+    @mcp.tool()
+    def save_book_changes(message: str | None = None) -> dict:
+        """Stage all changes in the book library, commit, and push origin main.
+
+        ONLY call this tool when the user has explicitly approved the change
+        ("save it", "commit that", "looks good, push it"). Drafts iterated in
+        chat without explicit approval should remain uncommitted on disk.
+        """
+        result = _save_changes(library_root, message=message)
+        return {
+            "committed": result.committed,
+            "pushed": result.pushed,
+            "commit_sha": result.commit_sha,
+            "message": result.message,
+            "pending_count": len(result.pending),
+        }
 
     return mcp

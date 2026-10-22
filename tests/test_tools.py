@@ -147,3 +147,30 @@ def _from_content(content):
             except (json.JSONDecodeError, TypeError):
                 return text
     return None
+
+
+@pytest.fixture
+def write_server(temp_library, monkeypatch):
+    monkeypatch.setenv("BOOK_LIBRARY_ROOT", str(temp_library))
+    return build_server()
+
+
+@pytest.mark.asyncio
+async def test_add_book_quote_uses_catalog_title_and_author(write_server, temp_library):
+    result = await write_server.call_tool(
+        "add_book_quote",
+        {"slug": "sample-book", "text": "Practise daily.", "why": "The habit.",
+         "location": "ch. 1", "themes": ["practice"]},
+    )
+    assert _extract(result) == {"path": "sample-book/personal-notes/README.md", "created": False}
+    note = (temp_library / "sample-book/personal-notes/README.md").read_text()
+    assert "> — Jane Doe, *Sample Book: A Test Fixture*, ch. 1" in note
+    assert "#quote/practice" in note
+
+
+@pytest.mark.asyncio
+async def test_add_book_quote_unknown_book_errors(write_server):
+    with pytest.raises(Exception, match="book not found"):
+        await write_server.call_tool(
+            "add_book_quote", {"slug": "no-such-book", "text": "x", "why": "y"}
+        )

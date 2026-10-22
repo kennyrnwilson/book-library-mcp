@@ -20,6 +20,18 @@ the server code.
 | `get_book_infographic_text` | Infographic text file for one book |
 | `list_infographics` | Whether a book has a whole-book infographic, and which chapters have one |
 | `get_infographic` | The whole-book infographic, or one chapter's, as an image |
+| `add_book_quote` | Append a quote to one book's `personal-notes/README.md`: the quote, a source line, a "Why" line, links and `#quote/<theme>` tags |
+| `write_personal_notes` | Replace one book's `personal-notes/README.md` |
+| `list_pending_book_changes` | Uncommitted changes in the library (parsed `git status`) |
+| `save_book_changes` | Stage, commit and push `main` |
+
+### Explicit-save model
+
+The write tools only touch disk, and only `<book>/personal-notes/README.md`. They
+never commit. `save_book_changes` stages, commits, rebases onto `origin/main` and
+pushes. The LLM must only call it when the user explicitly approves ("save it",
+"commit that", "looks good"). Saving needs a clone the server can write to, and a
+deploy key with write access.
 
 ## Self-hosting
 
