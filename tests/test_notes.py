@@ -25,12 +25,32 @@ def test_format_quote_requires_why():
         format_quote("text", "A", "T", "", "")
 
 
+def test_format_quote_refuses_a_placeholder_why():
+    with pytest.raises(ValueError, match="placeholder"):
+        format_quote("text", "A", "T", "", "<your own sentence>")
+
+
+def test_format_quote_names_the_speaker_first():
+    block = format_quote("Make a love letter.", "Nancy Duarte", "Resonate", "ch. 3",
+                         "A reminder.", said_by="Ken Haemer")
+    assert block.splitlines()[1] == "> — Ken Haemer, quoted in Nancy Duarte, *Resonate*, ch. 3"
+
+
+def test_add_book_quote_creates_a_missing_file(temp_library):
+    book = temp_library / "sample-book"
+    (book / "personal-notes/README.md").unlink()
+    res = add_book_quote(book, title="Sample Book", author="Jane Doe", text="New.",
+                         why="Because.", today="2026-10-27")
+    assert res["created"] is True and res["replaced_placeholder"] is False
+
+
 def test_add_book_quote_replaces_the_empty_placeholder(temp_library):
     book = temp_library / "sample-book"
     (book / "personal-notes/README.md").write_text("# Personal Notes\n")
     res = add_book_quote(book, title="Sample Book", author="Jane Doe", text="Practise.",
                          why="It is the point.", today="2026-10-22")
-    assert res == {"path": "sample-book/personal-notes/README.md", "created": True}
+    assert res == {"path": "sample-book/personal-notes/README.md", "created": False,
+                   "replaced_placeholder": True}
     note = (book / "personal-notes/README.md").read_text()
     assert note.startswith("# Sample Book: personal notes\n")
     assert "← [Back to Sample Book](../README.md)" in note
@@ -43,7 +63,7 @@ def test_add_book_quote_keeps_existing_notes(temp_library):
     res = add_book_quote(book, title="Sample Book", author="Jane Doe", text="One.",
                          why="First.", today="2026-10-22")
     add_book_quote(book, title="Sample Book", author="Jane Doe", text="Two.", why="Second.")
-    assert res["created"] is False
+    assert res["created"] is False and res["replaced_placeholder"] is False
     note = (book / "personal-notes/README.md").read_text()
     assert "deliberate practice scheduling" in note
     assert note.count("Quotes & Highlights") == 1

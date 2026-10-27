@@ -162,17 +162,26 @@ def build_server(host: str = "127.0.0.1", port: int = 5102) -> FastMCP:
         location: str = "",
         themes: list[str] | None = None,
         links: list[str] | None = None,
+        said_by: str = "",
     ) -> dict:
         """Append a quote to one book's personal notes, `<slug>/personal-notes/README.md`.
 
         Writes the quote, a source line (the book's author and title, plus a location
-        such as "ch. 11, p. 213"), a "Why" line in the user's words, and links plus one
-        `#quote/<theme>` tag per theme. Ask the user why the quote mattered if they
-        have not said. Does not commit: call `save_book_changes` once the user approves.
+        such as "ch. 11, p. 213"), a "Why" line and links plus one `#quote/<theme>` tag
+        per theme. When the book quotes someone else, put that person in `said_by`.
+
+        The "Why" and the themes are the user's. Pass the user's words exactly, with
+        no corrections. If the user has not given them, or has sent a placeholder
+        such as "<your own sentence>", ask; never write them yourself.
+
+        `created` is true only for a new file; `replaced_placeholder` means an empty
+        stub was replaced. Does not commit: call `save_book_changes` once the user
+        approves.
         """
         book = _require_book(slug)
         return _add_book_quote(book.path, title=book.title, author=book.author, text=text,
-                               why=why, location=location, themes=themes, links=links)
+                               why=why, location=location, themes=themes, links=links,
+                               said_by=said_by)
 
     @mcp.tool()
     def write_personal_notes(slug: str, content: str) -> dict:
@@ -205,7 +214,8 @@ def build_server(host: str = "127.0.0.1", port: int = 5102) -> FastMCP:
             "pushed": result.pushed,
             "commit_sha": result.commit_sha,
             "message": result.message,
-            "pending_count": len(result.pending),
+            # What is still uncommitted after the save, not what the save committed.
+            "pending_count": len(_list_pending(library_root)),
         }
 
     return mcp

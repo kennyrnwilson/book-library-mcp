@@ -28,6 +28,8 @@ _SECTION_END = re.compile(r"^(## |---$)", re.MULTILINE)
 _LAST_UPDATED = re.compile(r"^\*Last [Uu]pdated: [^*]*\*$", re.MULTILINE)
 # The placeholder each book's folder starts with.
 _EMPTY = {"", "# Personal Notes"}
+# A "why" such as "<your own sentence>": a template the user sent back unfilled.
+_PLACEHOLDER = re.compile(r"<[^>]*>")
 
 
 def _slugify(text: str) -> str:
@@ -60,14 +62,23 @@ def format_quote(
     why: str,
     themes: list[str] | None = None,
     links: list[str] | None = None,
+    said_by: str = "",
 ) -> str:
-    """Return one quote in the four-part shape, without surrounding blank lines."""
+    """Return one quote in the four-part shape, without surrounding blank lines.
+
+    `said_by` names the speaker when the book quotes someone else: the source line
+    then reads "— Speaker, quoted in Author, *Title*".
+    """
     text = text.strip().strip('"“”')
     if not text:
         raise ValueError("a quote needs its text")
     if not why.strip():
         raise ValueError("a quote needs a 'why': one line on why it mattered")
+    if _PLACEHOLDER.search(why):
+        raise ValueError("the 'why' is a placeholder; ask the user why the quote matters")
     source = f"— {author.strip()}, *{title.strip()}*"
+    if said_by.strip():
+        source = f"— {said_by.strip()}, quoted in {author.strip()}, *{title.strip()}*"
     if location.strip():
         source += f", {location.strip()}"
     quoted = "\n".join(f"> {line}" if line else ">" for line in f'"{text}"'.splitlines())
@@ -105,18 +116,28 @@ def add_book_quote(
     location: str = "",
     themes: list[str] | None = None,
     links: list[str] | None = None,
+    said_by: str = "",
     today: str | None = None,
 ) -> dict:
-    """Append a quote to a book's personal notes, creating them if they are empty."""
+    """Append a quote to a book's personal notes, creating them if they are empty.
+
+    `created` is true only when the file did not exist. `replaced_placeholder` is
+    true when the file held only the placeholder heading, which the notes replace.
+    """
     today = today or date.today().isoformat()
     path = notes_path(book_path)
-    existing = path.read_text() if path.is_file() else ""
-    created = existing.strip() in _EMPTY
-    note = new_notes(title, today) if created else existing
-    block = format_quote(text, author, title, location, why, themes, links)
+    created = not path.is_file()
+    existing = "" if created else path.read_text()
+    empty = existing.strip() in _EMPTY
+    note = new_notes(title, today) if empty else existing
+    block = format_quote(text, author, title, location, why, themes, links, said_by)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(insert_quote(note, block, today))
-    return {"path": f"{book_path.name}/{NOTES_FILE.as_posix()}", "created": created}
+    return {
+        "path": f"{book_path.name}/{NOTES_FILE.as_posix()}",
+        "created": created,
+        "replaced_placeholder": empty and not created,
+    }
 
 
 def write_personal_notes(book_path: Path, content: str) -> dict:
