@@ -185,3 +185,19 @@ async def test_save_book_changes_counts_what_is_left(temp_git_library, monkeypat
     result = _extract(await server.call_tool("save_book_changes", {"message": "test"}))
     assert result["committed"] is True
     assert result["pending_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_annotations_include_notes_quotes_and_highlights(write_server, temp_library):
+    await write_server.call_tool(
+        "add_book_note",
+        {"slug": "sample-book", "text": "Mine.", "location": "ch. 1", "anchor": "epubcfi(/6/4!)"},
+    )
+    await write_server.call_tool(
+        "write_highlights", {"slug": "sample-book", "highlights": [{"cfi": "c", "text": "t"}]}
+    )
+    got = _extract(await write_server.call_tool("get_book_annotations", {"slug": "sample-book"}))
+    assert got["highlights"] == [{"cfi": "c", "text": "t"}]
+    assert got["notes"][0]["text"] == "Mine."
+    assert got["notes"][0]["anchor"] == "epubcfi(/6/4!)"
+    assert got["quotes"] == []

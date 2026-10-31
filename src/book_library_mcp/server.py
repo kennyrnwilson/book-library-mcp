@@ -16,7 +16,12 @@ from book_library_mcp.images import (
     list_chapter_infographics,
     prepare_image,
 )
+from book_library_mcp.notes import add_book_note as _add_book_note
 from book_library_mcp.notes import add_book_quote as _add_book_quote
+from book_library_mcp.notes import notes_path as _notes_path
+from book_library_mcp.notes import parse_annotations as _parse_annotations
+from book_library_mcp.notes import read_highlights as _read_highlights
+from book_library_mcp.notes import write_highlights as _write_highlights
 from book_library_mcp.notes import write_personal_notes as _write_personal_notes
 from book_library_mcp.search import search_library
 
@@ -163,6 +168,7 @@ def build_server(host: str = "127.0.0.1", port: int = 5102) -> FastMCP:
         themes: list[str] | None = None,
         links: list[str] | None = None,
         said_by: str = "",
+        anchor: str = "",
     ) -> dict:
         """Append a quote to one book's personal notes, `<slug>/personal-notes/README.md`.
 
@@ -175,13 +181,54 @@ def build_server(host: str = "127.0.0.1", port: int = 5102) -> FastMCP:
         such as "<your own sentence>", ask; never write them yourself.
 
         `created` is true only for a new file; `replaced_placeholder` means an empty
-        stub was replaced. Does not commit: call `save_book_changes` once the user
+        stub was replaced. `anchor` is an EPUB CFI from the reading app; leave it
+        empty otherwise. Does not commit: call `save_book_changes` once the user
         approves.
         """
         book = _require_book(slug)
         return _add_book_quote(book.path, title=book.title, author=book.author, text=text,
                                why=why, location=location, themes=themes, links=links,
-                               said_by=said_by)
+                               said_by=said_by, anchor=anchor)
+
+    @mcp.tool()
+    def add_book_note(
+        slug: str, text: str, location: str = "", passage: str = "", anchor: str = ""
+    ) -> dict:
+        """Append a note in the user's own words to one book's personal notes.
+
+        Goes in the notes section of `<slug>/personal-notes/README.md`, under a
+        heading of `location` (such as "ch. 3") and today's date, after the
+        `passage` it is about if given. Pass the user's words exactly; never write
+        the note yourself. `anchor` is an EPUB CFI from the reading app. Does not
+        commit: call `save_book_changes` once the user approves.
+        """
+        book = _require_book(slug)
+        return _add_book_note(book.path, title=book.title, text=text, location=location,
+                              passage=passage, anchor=anchor)
+
+    @mcp.tool()
+    def get_book_annotations(slug: str) -> dict:
+        """Return everything the user has marked in one book, as structured data.
+
+        `highlights` from `personal-notes/highlights.json` (the reading app's), and
+        the `quotes` and `notes` parsed from the personal notes, each with its
+        location and EPUB anchor where it has one.
+        """
+        book = _require_book(slug)
+        path = _notes_path(book.path)
+        parsed = _parse_annotations(path.read_text() if path.is_file() else "")
+        return {"slug": slug, "highlights": _read_highlights(book.path), **parsed}
+
+    @mcp.tool()
+    def write_highlights(slug: str, highlights: list[dict]) -> dict:
+        """Replace one book's `personal-notes/highlights.json` with `highlights`.
+
+        Each highlight needs `cfi` and `text`; `chapter`, `color` and `created`
+        are kept as given. Send the whole list. Does not commit: call
+        `save_book_changes`.
+        """
+        book = _require_book(slug)
+        return _write_highlights(book.path, highlights)
 
     @mcp.tool()
     def write_personal_notes(slug: str, content: str) -> dict:
@@ -201,14 +248,17 @@ def build_server(host: str = "127.0.0.1", port: int = 5102) -> FastMCP:
         return _list_pending(library_root)
 
     @mcp.tool()
-    def save_book_changes(message: str | None = None) -> dict:
-        """Stage all changes in the book library, commit, and push origin main.
+    def save_book_changes(message: str | None = None, paths: list[str] | None = None) -> dict:
+        """Stage changes in the book library, commit, and push origin main.
+
+        With `paths` (library-relative, such as "outlive/personal-notes"), only
+        changes under them are committed and other drafts stay on disk.
 
         ONLY call this tool when the user has explicitly approved the change
         ("save it", "commit that", "looks good, push it"). Drafts iterated in
         chat without explicit approval should remain uncommitted on disk.
         """
-        result = _save_changes(library_root, message=message)
+        result = _save_changes(library_root, message=message, paths=paths)
         return {
             "committed": result.committed,
             "pushed": result.pushed,
